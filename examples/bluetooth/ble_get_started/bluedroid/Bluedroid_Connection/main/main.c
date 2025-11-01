@@ -49,13 +49,13 @@ void app_main(void)
 {
     esp_err_t ret;
 
-    //initialize NVS
+    // Initialize NVS
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
-    ESP_ERROR_CHECK( ret );
+    ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -71,8 +71,7 @@ void app_main(void)
         return;
     }
 
-    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
-    ret = esp_bluedroid_init_with_cfg(&cfg);
+    ret = esp_bluedroid_init();
     if (ret) {
         ESP_LOGE(CONN_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;
@@ -104,7 +103,7 @@ void app_main(void)
 
     ret = esp_ble_gatt_set_local_mtu(500);
     if (ret) {
-        ESP_LOGE(CONN_TAG, "set local  MTU failed, error code = %x", ret);
+        ESP_LOGE(CONN_TAG, "set local MTU failed, error code = %x", ret);
         return;
     }
 
@@ -113,6 +112,15 @@ void app_main(void)
         ESP_LOGE(CONN_TAG, "set device name failed, error code = %x", ret);
         return;
     }
+
+    // Configure security parameters for Passkey Entry
+    uint32_t passkey = 123456; // Set a fixed 6-digit passkey
+    esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_BOND;; // Bonding, MITM, Secure Connections
+    esp_ble_io_cap_t iocap = ESP_IO_CAP_OUT; // Display-only for Passkey
+
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &passkey, sizeof(uint32_t));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(auth_req));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(iocap));
 
     ret = esp_ble_gap_config_adv_data_raw(adv_raw_data, sizeof(adv_raw_data));
     if (ret) {
@@ -142,17 +150,27 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         break;
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
         ESP_LOGI(CONN_TAG, "Connection params update, status %d, conn_int %d, latency %d, timeout %d",
-                    param->update_conn_params.status,
-                    param->update_conn_params.conn_int,
-                    param->update_conn_params.latency,
-                    param->update_conn_params.timeout);
+                 param->update_conn_params.status,
+                 param->update_conn_params.conn_int,
+                 param->update_conn_params.latency,
+                 param->update_conn_params.timeout);
+        break;
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+        //ESP_LOGI(CONN_TAG, "Passkey: %d", param->ble_security.ble_key.key_value.passkey);
+        break;
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+        if (param->ble_security.auth_cmpl.success) {
+            ESP_LOGI(CONN_TAG, "Pairing successful with " ESP_BD_ADDR_STR,
+                     ESP_BD_ADDR_HEX(param->ble_security.auth_cmpl.bd_addr));
+        } else {
+            ESP_LOGE(CONN_TAG, "Pairing failed, reason = %d", param->ble_security.auth_cmpl.fail_reason);
+        }
         break;
     default:
         break;
     }
 }
 
-//because we only have one profile table in this demo, there is only one set of gatts evemt handler
 static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
 {
     switch (event) {
@@ -166,13 +184,15 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         conn_params.max_int = 0x20;
         conn_params.min_int = 0x10;
         conn_params.timeout = 400;
-        ESP_LOGI(CONN_TAG, "Connected, conn_id %u, remote "ESP_BD_ADDR_STR"",
-                param->connect.conn_id, ESP_BD_ADDR_HEX(param->connect.remote_bda));
+        ESP_LOGI(CONN_TAG, "Connected, conn_id %u, remote " ESP_BD_ADDR_STR "",
+                 param->connect.conn_id, ESP_BD_ADDR_HEX(param->connect.remote_bda));
         esp_ble_gap_update_conn_params(&conn_params);
+        // Request authentication after connection
+        esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_MITM);
         break;
     case ESP_GATTS_DISCONNECT_EVT:
-        ESP_LOGI(CONN_TAG, "Disconnected, remote "ESP_BD_ADDR_STR", reason 0x%02x",
-                ESP_BD_ADDR_HEX(param->disconnect.remote_bda), param->disconnect.reason);
+        ESP_LOGI(CONN_TAG, "Disconnected, remote " ESP_BD_ADDR_STR ", reason 0x%02x",
+                 ESP_BD_ADDR_HEX(param->disconnect.remote_bda), param->disconnect.reason);
         esp_ble_gap_start_advertising(&adv_params);
         break;
     default:
