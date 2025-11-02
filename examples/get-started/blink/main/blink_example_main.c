@@ -29,6 +29,7 @@ static led_strip_handle_t led_strip;
 
 static void blink_led(void)
 {
+    ESP_LOGI(TAG, "Turning the LED %s! led_strip", s_led_state == true ? "ON" : "OFF");
     /* If the addressable LED is enabled */
     if (s_led_state) {
         /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
@@ -72,6 +73,7 @@ static void configure_led(void)
 
 static void blink_led(void)
 {
+    ESP_LOGI(TAG, "Turning the LED %s! with gpio at BLINK_GPIO %d", s_led_state == true ? "ON" : "OFF", BLINK_GPIO);
     /* Set the GPIO level according to the state (LOW or HIGH)*/
     gpio_set_level(BLINK_GPIO, s_led_state);
 }
