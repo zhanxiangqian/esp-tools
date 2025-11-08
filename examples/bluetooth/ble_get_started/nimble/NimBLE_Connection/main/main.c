@@ -7,6 +7,7 @@
 #include "common.h"
 #include "gap.h"
 #include "led.h"
+#include "esp_pm.h"
 
 /* Library function declarations */
 void ble_store_config_init(void);
@@ -91,6 +92,14 @@ void app_main(void) {
 
     /* NimBLE host configuration initialization */
     nimble_host_config_init();
+
+    esp_pm_config_t pm_cfg = {
+        .max_freq_mhz = 60,
+        .min_freq_mhz = 10,
+        .light_sleep_enable = false
+    };
+    esp_pm_configure(&pm_cfg);
+    ble_security_init();
 
     /* Start NimBLE host task thread and return */
     xTaskCreate(nimble_host_task, "NimBLE Host", 4*1024, NULL, 5, NULL);

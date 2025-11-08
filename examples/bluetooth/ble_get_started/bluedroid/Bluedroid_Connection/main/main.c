@@ -24,6 +24,7 @@
 #include "esp_log.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
+#include "esp_pm.h"
 
 #define APP_ID_PLACEHOLDER  0
 #define CONN_TAG            "BLE_GPIO_DEMO"
@@ -56,8 +57,8 @@ static uint8_t adv_raw_data[] = {
 };
 
 static esp_ble_adv_params_t adv_params = {
-    .adv_int_min        = 0x20,
-    .adv_int_max        = 0x20,
+    .adv_int_min        = 0x320,
+    .adv_int_max        = 0x320,
     .adv_type           = ADV_TYPE_IND,
     .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
     .channel_map        = ADV_CHNL_ALL,
@@ -251,7 +252,15 @@ void app_main(void)
     ESP_ERROR_CHECK(gpio_config(&io_conf));
     gpio_set_level(GPIO_OUTPUT_PIN, 0);
     configure_led();
+
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = 80,
+        .min_freq_mhz = 10
+    };
+    esp_pm_configure(&pm_config);
 }
+
+
 
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {

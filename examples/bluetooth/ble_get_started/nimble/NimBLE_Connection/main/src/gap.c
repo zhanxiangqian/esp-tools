@@ -7,6 +7,8 @@
 #include "gap.h"
 #include "common.h"
 #include "led.h"
+#include "host/ble_hs.h"
+#include "host/ble_sm.h"
 
 /* Private function declarations */
 inline static void format_addr(char *addr_str, uint8_t addr[]);
@@ -23,6 +25,18 @@ static uint8_t esp_uri[] = {BLE_GAP_URI_PREFIX_HTTPS, '/', '/', 'e', 's', 'p', '
 inline static void format_addr(char *addr_str, uint8_t addr[]) {
     sprintf(addr_str, "%02X:%02X:%02X:%02X:%02X:%02X", addr[0], addr[1],
             addr[2], addr[3], addr[4], addr[5]);
+}
+
+
+void ble_security_init(void)
+{
+    // 要求配对时输入6位密码
+    ble_hs_cfg.sm_io_cap = BLE_HS_IO_DISPLAY_ONLY;  // 或 KEYBOARD_ONLY
+    ble_hs_cfg.sm_bonding = 1;   // 启用bonding（记忆配对）
+    ble_hs_cfg.sm_mitm = 1;      // 启用MITM保护（要求输入密码）
+    ble_hs_cfg.sm_sc = 1;        // 启用LE Secure Connection
+    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
 }
 
 static void print_conn_desc(struct ble_gap_conn_desc *desc) {
@@ -180,7 +194,34 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
             start_advertising();
         }
         return rc;
+    case BLE_GAP_EVENT_PASSKEY_ACTION:
+        switch (event->passkey.params.action) {
 
+                case BLE_SM_IOACT_DISP:
+                    // 本设备生成passkey并显示
+                    ESP_LOGI(TAG, "Display this passkey to user: %06lu",
+                            (unsigned long) event->passkey.params.passkey);
+                    break;
+
+                case BLE_SM_IOACT_INPUT:
+                    // 对方要求我们输入passkey（比如手机显示PIN）
+                    ESP_LOGI(TAG, "Enter passkey on this device: (user input required)");
+                    // 注意：此场景通常由NimBLE内部等待用户输入事件（暂无API直接输入）
+                    break;
+
+                case BLE_SM_IOACT_NUMCMP:
+                    // 数字比较配对（确认）
+                    ESP_LOGI(TAG, "Confirm numeric comparison: %lu",
+                            (unsigned long) event->passkey.params.passkey);
+                    // NimBLE自动继续
+                    break;
+
+                default:
+                    ESP_LOGW(TAG, "Unhandled passkey action: %d", event->passkey.params.action);
+                    break;
+                }
+                break;
+        return rc;
     /* Disconnect event */
     case BLE_GAP_EVENT_DISCONNECT:
         /* A connection was terminated, print connection descriptor */
