@@ -173,7 +173,7 @@ static void configure_led(void)
 static void blink_led(void)
 {
     /* Set the GPIO level according to the state (LOW or HIGH)*/
-    gpio_set_level(BLINK_GPIO, s_led_state);
+    gpio_set_level(BLINK_GPIO, !s_led_state);
 }
 
 static void configure_led(void)
@@ -250,9 +250,9 @@ void app_main(void)
         .pull_up_en   = 0,
     };
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    gpio_set_level(GPIO_OUTPUT_PIN, 0);
+    //gpio_set_level(GPIO_OUTPUT_PIN, 1);
     configure_led();
-
+    blink_led();
     esp_pm_config_t pm_config = {
         .max_freq_mhz = 80,
         .min_freq_mhz = 10
